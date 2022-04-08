@@ -15,6 +15,9 @@ import 'package:moengage_flutter/push_token.dart';
 import 'utils.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+final MoEngageFlutter _moengagePlugin = MoEngageFlutter();
+late FirebaseMessaging messaging;
+
 /// Define a top-level named handler which background/terminated messages will
 /// call.
 ///
@@ -26,6 +29,48 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Handling a background message ${message.messageId}');
 }
 
+/// Handler for push token callback
+void _onPushTokenGenerated(PushToken pushToken) {
+  print(
+      "Main : _onPushTokenGenerated() : This is callback on push token generated from native to flutter: PushToken: " +
+          pushToken.toString());
+}
+
+/// Handler for push click callback
+void _onPushClick(PushCampaign message) {
+  print(
+      "Main : _onPushClick(): This is a push click callback from native to flutter. Payload " +
+          message.toString());
+}
+
+/// Handler for in-app click callback
+void _onInAppClick(InAppCampaign message) {
+  print(
+      "Main : _onInAppClick() : This is a inapp click callback from native to flutter. Payload " +
+          message.toString());
+}
+
+/// Handler for in-app shown callback
+void _onInAppShown(InAppCampaign message) {
+  print(
+      "Main : _onInAppShown() : This is a callback on inapp shown from native to flutter. Payload " +
+          message.toString());
+}
+
+/// Handler for in-app dismissed callback
+void _onInAppDismiss(InAppCampaign message) {
+  print(
+      "Main : _onInAppDismiss() : This is a callback on inapp dismiss from native to flutter. Payload " +
+          message.toString());
+}
+
+/// Handler for in-app custom action callback
+void _onInAppCustomAction(InAppCampaign message) {
+  print(
+      "Main : _onInAppCustomAction() : This is a callback on inapp custom action from native to flutter. Payload " +
+          message.toString());
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -33,6 +78,19 @@ Future<void> main() async {
   // Set the background messaging handler early on, as a named top-level function
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  //set the callbacks
+  _moengagePlugin.setUpPushCallbacks(_onPushClick);
+
+  _moengagePlugin.setUpInAppCallbacks(
+      onInAppClick: _onInAppClick,
+      onInAppShown: _onInAppShown,
+      onInAppDismiss: _onInAppDismiss,
+      onInAppCustomAction: _onInAppCustomAction);
+
+  _moengagePlugin.setUpPushTokenCallback(_onPushTokenGenerated);
+
+  //initialise moengage plugin
+  _moengagePlugin.initialise();
   runApp(MaterialApp(home: MyApp()));
 }
 
@@ -42,86 +100,34 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final MoEngageFlutter _moengagePlugin = MoEngageFlutter();
   final MoEngageInbox _moEngageInbox = MoEngageInbox();
-
-  void _onPushClick(PushCampaign message) {
-    print(
-        "Main : _onPushClick(): This is a push click callback from native to flutter. Payload " +
-            message.toString());
-  }
-
-  void _onInAppClick(InAppCampaign message) {
-    print(
-        "Main : _onInAppClick() : This is a inapp click callback from native to flutter. Payload " +
-            message.toString());
-  }
-
-  void _onInAppShown(InAppCampaign message) {
-    print(
-        "Main : _onInAppShown() : This is a callback on inapp shown from native to flutter. Payload " +
-            message.toString());
-  }
-
-  void _onInAppDismiss(InAppCampaign message) {
-    print(
-        "Main : _onInAppDismiss() : This is a callback on inapp dismiss from native to flutter. Payload " +
-            message.toString());
-  }
-
-  void _onInAppCustomAction(InAppCampaign message) {
-    print(
-        "Main : _onInAppCustomAction() : This is a callback on inapp custom action from native to flutter. Payload " +
-            message.toString());
-  }
-
-  void _onInAppSelfHandle(InAppCampaign message) async {
-    print(
-        "Main : _onInAppSelfHandle() : This is a callback on inapp self handle from native to flutter. Payload " +
-            message.toString());
-
-    final SelfHandledActions action =
-        await asyncSelfHandledDialog(buildContext);
-    switch (action) {
-      case SelfHandledActions.Shown:
-        _moengagePlugin.selfHandledShown(message);
-        break;
-      case SelfHandledActions.PrimaryClicked:
-        _moengagePlugin.selfHandledPrimaryClicked(message);
-        break;
-      case SelfHandledActions.Clicked:
-        _moengagePlugin.selfHandledClicked(message);
-        break;
-      case SelfHandledActions.Dismissed:
-        _moengagePlugin.selfHandledDismissed(message);
-        break;
-    }
-  }
-
-  void _onPushTokenGenerated(PushToken pushToken) {
-    print(
-        "Main : _onPushTokenGenerated() : This is callback on push token generated from native to flutter: PushToken: " +
-            pushToken.toString());
-  }
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
-    _moengagePlugin.setUpPushCallbacks(_onPushClick);
-    _moengagePlugin.setUpInAppCallbacks(
-        onInAppClick: _onInAppClick,
-        onInAppShown: _onInAppShown,
-        onInAppDismiss: _onInAppDismiss,
-        onInAppCustomAction: _onInAppCustomAction,
-        onInAppSelfHandle: _onInAppSelfHandle);
-    _moengagePlugin.setUpPushTokenCallback(_onPushTokenGenerated);
-    _moengagePlugin.initialise();
+
+    messaging = FirebaseMessaging.instance;
+
+    messaging.getToken().then((value){
+      print("Main :  getToken() : token: "+ value!);
+      if (value != null) {
+        _moengagePlugin.passFCMPushToken(value);
+      }
+    });
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage event) {
+      print("Main : message recieved");
+      print(event.notification!.body);
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      print('Main : Message clicked!');
+    });
   }
 
   Future<void> initPlatformState() async {
     if (!mounted) return;
-    //Push.getTokenStream.listen(_onTokenEvent, onError: _onTokenError);
   }
 
   late BuildContext buildContext;
@@ -179,7 +185,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             "dateTime2", "2019-12-06T08:26:21.170Z");
                     final String value =
                         await asyncInputDialog(context, "Event name");
-                    print("Main: Event name : $value");
+                    print("Main : Event name : $value");
                     _moengagePlugin.trackEvent(value, details);
                   }),
               new ListTile(
@@ -213,7 +219,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             "dateTime2", "2019-12-06T08:26:21.170Z");
                     final String value =
                         await asyncInputDialog(context, "Event name");
-                    print("Main: Event name : $value");
+                    print("Main : Event name : $value");
                     _moengagePlugin.trackEvent(value, details);
                   }),
               new ListTile(
@@ -221,7 +227,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   onTap: () async {
                     final String value =
                         await asyncInputDialog(context, "Event name");
-                    print("Main: Event name : $value");
+                    print("Main : Event name : $value");
                     _moengagePlugin.trackEvent(value);
                     _moengagePlugin.trackEvent(value, MoEProperties());
                   }),
@@ -231,7 +237,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 //                    _moengagePlugin.setUniqueId(null);
                     final String value =
                         await asyncInputDialog(context, "Unique Id");
-                    print("Main: UniqueId: $value");
+                    print("Main : UniqueId: $value");
                     _moengagePlugin.setUniqueId(value);
                   }),
               new ListTile(
@@ -240,7 +246,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     _moengagePlugin.setUserName("tesst");
                     final String value =
                         await asyncInputDialog(context, "User Name");
-                    print("Main: UserName: $value");
+                    print("Main : UserName: $value");
                     _moengagePlugin.setUserName(value);
                   }),
               new ListTile(
@@ -248,7 +254,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   onTap: () async {
                     final String value =
                         await asyncInputDialog(context, "First Name");
-                    print("Main: FisrtName: $value");
+                    print("Main : FisrtName: $value");
                     _moengagePlugin.setFirstName(value);
                   }),
               new ListTile(
@@ -256,7 +262,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   onTap: () async {
                     final String value =
                         await asyncInputDialog(context, "Last Name");
-                    print("Main: Last Name: $value");
+                    print("Main : Last Name: $value");
                     _moengagePlugin.setLastName(value);
                   }),
               new ListTile(
@@ -264,7 +270,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   onTap: () async {
                     final String value =
                         await asyncInputDialog(context, "EmailId");
-                    print("Main: EmailId: $value");
+                    print("Main : EmailId: $value");
                     _moengagePlugin.setEmail(value);
                   }),
               new ListTile(
@@ -272,7 +278,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   onTap: () async {
                     final String value =
                         await asyncInputDialog(context, "Phone Number");
-                    print("Main: Phone Number: $value");
+                    print("Main : Phone Number: $value");
                     _moengagePlugin.setPhoneNumber(value);
                   }),
               new ListTile(
@@ -294,7 +300,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 title: Text("Set Alias"),
                 onTap: () async {
                   final String value = await asyncInputDialog(context, "Alias");
-                  print("Main: Alias : $value");
+                  print("Main : Alias : $value");
                   _moengagePlugin.setAlias(value);
                 },
               ),
