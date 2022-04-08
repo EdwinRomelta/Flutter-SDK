@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:moengage_flutter/moengage_flutter.dart';
@@ -12,8 +13,28 @@ import 'package:moengage_inbox/inbox_message.dart';
 import 'package:moengage_inbox/moengage_inbox.dart';
 import 'package:moengage_flutter/push_token.dart';
 import 'utils.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-void main() => runApp(MaterialApp(home: MyApp()));
+/// Define a top-level named handler which background/terminated messages will
+/// call.
+///
+/// To verify things are working, check out the native platform logs.
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+  print('Handling a background message ${message.messageId}');
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
+  // Set the background messaging handler early on, as a named top-level function
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(MaterialApp(home: MyApp()));
+}
 
 class MyApp extends StatefulWidget {
   @override

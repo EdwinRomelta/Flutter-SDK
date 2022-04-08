@@ -16,6 +16,8 @@ dependencies:
 
   moengage_flutter:
     path: ../core/
+  firebase_messaging: ^11.2.12
+  firebase_core: ^1.14.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
